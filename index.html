@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>HRM — Сотрудники</title>
+
+    <style>
+        table { width: 90%; margin: 20px auto; border-collapse: collapse; }
+        th, td { border: 1px solid #444; padding: 8px; }
+        th { background: #eee; }
+        .filters { text-align: center; margin: 20px; }
+        select, input { margin: 0 5px; padding: 3px 5px; }
+        button { padding: 5px 10px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<h2 style="text-align:center">Сотрудники компании</h2>
+
+<div class="filters">
+    <select id="departmentFilter"></select>
+    <select id="positionFilter"></select>
+    <input type="date" id="hireFrom">
+    <input type="date" id="hireTo">
+</div>
+
+<table id="employeesTable">
+    <thead>
+        <tr>
+            <th>ФИО</th>
+            <th>Отдел</th>
+            <th>Должность</th>
+            <th>Дата приёма</th>
+        </tr>
+    </thead>
+    <tbody></tbody>
+</table>
+
+
+
+<script>
+// === URL API FastAPI ===
+const API = "http://127.0.0.1:8000";
+
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const year = date.getFullYear();
+    return `${day}.${month}.${year}`;
+}
+
+
+// === Загрузка отделов ===
+async function loadDepartments() {
+    const resp = await fetch(`${API}/departments`);
+    const data = await resp.json();
+    const sel = document.getElementById("departmentFilter");
+    sel.innerHTML = "<option value=''>Все отделы</option>";
+
+    data.forEach(d => {
+        const o = document.createElement("option");
+        o.value = d.id;
+        o.textContent = d.name;
+        sel.appendChild(o);
+    });
+}
+
+
+// === Загрузка должностей ===
+async function loadPositions() {
+    const resp = await fetch(`${API}/positions`);
+    const data = await resp.json();
+
+    const sel = document.getElementById("positionFilter");
+    sel.innerHTML = "<option value=''>Все должности</option>";
+
+    data.forEach(p => {
+        const o = document.createElement("option");
+        o.value = p.id;
+        o.textContent = p.name;
+        sel.appendChild(o);
+    });
+}
+
+
+// === Загрузка сотрудников ===
+async function loadEmployees() {
+    const dept = document.getElementById("departmentFilter").value;
+    const pos = document.getElementById("positionFilter").value;
+    const hireFrom = document.getElementById("hireFrom").value;
+    const hireTo = document.getElementById("hireTo").value;
+
+    let url = `${API}/employees?`;
+
+    if (dept) url += `department_id=${dept}&`;
+    if (pos) url += `position_id=${pos}&`;
+    if (hireFrom) url += `hire_date_from=${hireFrom}&`;
+    if (hireTo) url += `hire_date_to=${hireTo}&`;
+
+    const resp = await fetch(url);
+    const data = await resp.json();
+
+    const tbody = document.querySelector("#employeesTable tbody");
+    tbody.innerHTML = "";
+
+    data.forEach(emp => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td>${emp.first_name} ${emp.last_name}</td>
+            <td>${emp.department.name}</td>
+            <td>${emp.position.name}</td>
+            <td>${formatDate(emp.hire_date)}</td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+
+// === Инициализация страницы ===
+async function init() {
+    await loadDepartments();
+    await loadPositions();
+    await loadEmployees();
+
+    // Включаем фильтрацию
+    document.getElementById("departmentFilter").addEventListener("change", loadEmployees);
+    document.getElementById("positionFilter").addEventListener("change", loadEmployees);
+    document.getElementById("hireFrom").addEventListener("change", loadEmployees);
+    document.getElementById("hireTo").addEventListener("change", loadEmployees);
+}
+
+window.onload = init;
+
+
+</script>
+
+</body>
+</html>
