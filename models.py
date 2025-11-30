@@ -1,49 +1,68 @@
-# Таблицы SQL
 
 from sqlalchemy import Column, Integer, String, Date, ForeignKey, Float
 from sqlalchemy.orm import relationship
 from database import Base
 
+"""
+Класс Department описывает таблицу отделов
+"""
 class Department(Base):
     __tablename__ = "departments"
 
-    id = Column(Integer, primary_key=True)
-    name = Column(String(100), unique=True)
+    id = Column(Integer, primary_key = True)   # id отдела
+    name = Column(String(100), unique = True) # Название отдела
 
-    employees = relationship("Employee", back_populates="department")
+    # Связь один-ко-многим с сотрудниками
+    employees = relationship("Employee", back_populates = "department")
 
 
+"""
+Класс Position описывает таблицу должностей
+"""
 class Position(Base):
     __tablename__ = "positions"
 
-    id = Column(Integer, primary_key=True)
-    name = Column(String(100), unique=True)
+    id = Column(Integer, primary_key = True)  # id должности
+    name = Column(String(100), unique = True) # Название должности
 
-    employees = relationship("Employee", back_populates="position")
+    # Связь один-ко-многим с сотрудниками
+    employees = relationship("Employee", back_populates = "position")
 
-
+"""
+Класс Employee описывает таблицу сотрудников
+"""
 class Employee(Base):
     __tablename__ = "employees"
 
-    id = Column(Integer, primary_key=True)
-    first_name = Column(String(120))
-    last_name = Column(String(120))
-    hire_date = Column(Date)
+    id = Column(Integer, primary_key = True)  # id сотрудника
+    last_name = Column(String(120))  # Фамилия
+    first_name = Column(String(120))  # Имя
+    middle_name = Column(String(120))  # отчество
+    hire_date = Column(Date)  # Дата приёма на работу
 
-    department_id = Column(Integer, ForeignKey("departments.id"))
-    position_id = Column(Integer, ForeignKey("positions.id"))
+    department_id = Column(Integer, ForeignKey("departments.id"))  # Связь с отделом
+    position_id = Column(Integer, ForeignKey("positions.id"))  # Связь с должностью
 
-    department = relationship("Department", back_populates="employees")
-    position = relationship("Position", back_populates="employees")
-    salary_history = relationship("SalaryHistory", back_populates="employee")
+    # Связь многие-к-одному с отделом
+    department = relationship("Department", back_populates = "employees")
+
+    # Связь многие-к-одному с должностью
+    position = relationship("Position", back_populates = "employees")
+
+    # Связь один-ко-многим с историей зарплат
+    salary_history = relationship("SalaryHistory", back_populates = "employee")
 
 
+"""
+Класс SalaryHistory описывает таблицу истории зарплат
+"""
 class SalaryHistory(Base):
     __tablename__ = "salary_history"
 
-    id = Column(Integer, primary_key=True)
-    employee_id = Column(Integer, ForeignKey("employees.id"))
-    change_date = Column(Date)
-    amount = Column(Float)
+    id = Column(Integer, primary_key = True)  # id записи истории зарплаты
+    employee_id = Column(Integer, ForeignKey("employees.id"))  # Связь с сотрудником
+    change_date = Column(Date)  # Дата изменения зарплаты
+    amount = Column(Float)  # Зарплата
 
-    employee = relationship("Employee", back_populates="salary_history")
+    # Связь многие-к-одному с сотрудником
+    employee = relationship("Employee", back_populates = "salary_history")

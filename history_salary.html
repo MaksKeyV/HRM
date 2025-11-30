@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>HRM — История зарплат</title>
+
+    <style>
+        /* Стили таблицы — точно как в других файлах */
+        table {width: 50%; margin: 20px auto; border-collapse: collapse;}
+        th, td {border: 1px solid #444; padding: 8px; text-align: left;}
+        th {background: #eee; text-align: center;}
+
+        /* Кнопка возврата */
+        .back {margin: 20px auto; text-align: center;}
+
+        button {padding: 6px 12px; cursor: pointer;}
+
+        /* Текст по центру */
+        .center {text-align: center; padding: 10px 0; color: #666;}
+    </style>
+</head>
+
+<body>
+
+    <!-- Кнопка возврата -->
+    <div class="back">
+        <button onclick="location.href='index.html'">← Назад к сотрудникам</button>
+    </div>
+
+    <!-- Заголовок -->
+    <h2 style="text-align:center" id="title">История зарплат</h2>
+
+    <!-- Таблица -->
+    <table id="historyTable">
+        <thead>
+            <tr>
+                <th>Дата изменения</th>
+                <th class="right">Сумма</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <!-- Сообщение "пусто" -->
+    <div id="empty" class="center" style="display:none;">История отсутствует</div>
+
+<script>
+const API = "http://127.0.0.1:8000";
+
+// --- читаем параметры из URL ---
+const params = new URLSearchParams(window.location.search);
+const employeeId = params.get("employee");
+const firstName = params.get("first");
+const lastName = params.get("last");
+
+// Подставляем ФИО
+if (firstName && lastName) 
+{
+    document.getElementById("title").textContent = `История зарплат — ${firstName} ${lastName}`;
+}
+
+// Функция форматирует дату в вид ДД.ММ.ГГГГ
+// Параметры: d — дата
+// Возвращаемое значение: строка отформатированной даты
+function formatDate(d) 
+{
+    if (!d) return "";
+    const dt = new Date(d);
+    const dd = String(dt.getDate()).padStart(2, "0");
+    const mm = String(dt.getMonth() + 1).padStart(2, "0");
+    const yy = dt.getFullYear();
+    return `${dd}.${mm}.${yy}`;
+}
+
+// Функция форматирует зарплату в денежный вид
+// Параметры: val — числовое значение зарплаты
+// Возвращаемое значение: строка с форматированием
+function formatCurrency(val) 
+{
+    return Number(val).toLocaleString("ru-RU") + " ₽";
+}
+
+// Функция загружает историю зарплат сотрудника
+// Параметры: отсутствуют
+// Возвращаемое значение: отсутствует
+async function loadHistory() 
+{
+    const resp = await fetch(`${API}/salary/${employeeId}`);
+    if (!resp.ok) 
+    {
+        console.error("Ошибка API");
+        return;
+    }
+    const data = await resp.json();
+
+    const tbody = document.querySelector("#historyTable tbody");
+    tbody.innerHTML = "";
+
+    if (data.length === 0) 
+    {
+        document.getElementById("empty").style.display = "block";
+        document.getElementById("historyTable").style.display = "none";
+        return;
+    }
+
+    document.getElementById("empty").style.display = "none";
+    document.getElementById("historyTable").style.display = "table";
+
+    // Сортировка по дате: новые записи сверху
+    data.sort((a, b) => new Date(b.change_date) - new Date(a.change_date));
+
+    // Заполняем таблицу
+    data.forEach(rec => 
+    {
+        const tr = document.createElement("tr");
+        tr.innerHTML = 
+        `
+            <td>${formatDate(rec.change_date)}</td>
+            <td class="right">${formatCurrency(rec.amount)}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+// Инициализация страницы
+loadHistory();
+</script>
+</body>
+</html>

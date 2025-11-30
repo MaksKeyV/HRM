@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>HRM — Список отделов</title>
+
+    <style>
+         /* Стили таблицы */
+        table {width: 50%; margin: 20px auto; border-collapse: collapse;}
+        th, td {border: 1px solid #444; padding: 8px; text-align: left;}
+        th {background: #eee; text-align: center;}
+        /* Кнопка возврата */
+        .back {margin: 20px auto; text-align: center;}
+        button {padding: 6px 12px; cursor: pointer;}
+    </style>
+</head>
+
+<body>
+
+<!-- Кнопка возврата на главный экран -->
+<div class="back">
+    <button onclick="location.href='index.html'">← Назад к сотрудникам</button>
+</div>
+
+<h2 style="text-align:center">Список отделов</h2>
+
+<!-- Таблица с отделами -->
+<table id="departmentsTable">
+    <thead>
+        <tr>
+            <th>Название отдела</th>
+        </tr>
+    </thead>
+    <tbody></tbody>
+</table>
+
+<script>
+const API = "http://127.0.0.1:8000";
+
+
+// Функция загружает список отделов
+// Параметры: отсутствуют
+// Возвращаемое значение: отсутствует
+async function loadDepartments() 
+{
+    const resp = await fetch(`${API}/departments`);
+    const data = await resp.json();
+
+    const tbody = document.querySelector("#departmentsTable tbody");
+    tbody.innerHTML = "";
+    
+    // Заполнение таблицы
+    data.forEach(dep => 
+    {
+        const row = document.createElement("tr");
+        row.innerHTML = `<td>${dep.name}</td>`;
+        tbody.appendChild(row);
+    });
+}
+
+// Инициализация страницы
+window.onload = loadDepartments;
+</script>
+
+</body>
+</html>
