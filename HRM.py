@@ -5,11 +5,10 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from database import Base, engine, get_db
-from schemas import (Employee, EmployeeCreate, Department, Position, SalaryHistory, SalaryHistoryBase)
+from schemas import (Employee, EmployeeCreate, Department, Position, SalaryHistory, SalaryHistoryBase, EmployeeFull)
 from models import (Employee as EmployeeModel, Department as DepartmentModel, Position as PositionModel, SalaryHistory as SalaryHistoryModel)
 import db_queries
 from datetime import date
-from pydantic import BaseModel
 
 # Создаём приложение FastAPI
 app = FastAPI()
@@ -55,7 +54,7 @@ def read_positions(db = Depends(get_db)):
 """
 @app.get("/employees", response_model = List[Employee])
 def read_employees(department_id: int = None, position_id: int = None, hire_date_from: str = None, 
-                   hire_date_to: str = None, db=Depends(get_db)):
+                   hire_date_to: str = None, db = Depends(get_db)):
     return db_queries.get_employees(db, department_id, position_id, hire_date_from, hire_date_to)
 
 
@@ -81,7 +80,7 @@ def read_salary(employee_id: int, db = Depends(get_db)):
 @app.post("/employees", response_model = Employee)
 def create_employee(emp: EmployeeCreate, db: Session = Depends(get_db)):
     new_emp = EmployeeModel(    # Создаём объект сотрудника SQLAlchemy
-         last_name = emp.last_name,  # Фамилия сотрудника
+        last_name = emp.last_name,  # Фамилия сотрудника
         first_name = emp.first_name,  # Имя сотрудника
         middle_name = emp.middle_name,  # Отчество сотрудника 
         hire_date = emp.hire_date,  # Дата найма
@@ -92,18 +91,32 @@ def create_employee(emp: EmployeeCreate, db: Session = Depends(get_db)):
     db.commit()  # Сохраняем изменения в базе
     db.refresh(new_emp)  # Обновляем объект после сохранения
 
-    # Создание начальной записи зарплаты
-    salary_record = SalaryHistoryModel(  # Объект истории зарплаты
-        employee_id = new_emp.id,  # id сотрудника
-        change_date = emp.hire_date,  # Дата начала зарплаты
-        amount = emp.amount  # Сумма зарплаты
-    )
-    db.add(salary_record)  # Добавляем запись истории зарплаты
-    db.commit()  # Сохраняем изменения
+     # Создание начальной записи зарплаты
+    if emp.amount is not None:
+        salary_record = SalaryHistoryModel(  # Объект истории зарплаты
+            employee_id = new_emp.id,  # id сотрудника
+            change_date = emp.hire_date,  # Дата начала зарплаты
+            amount = emp.amount  # Сумма зарплаты
+        )
+        db.add(salary_record)  # Добавляем запись истории зарплаты
+        db.commit()  # Сохраняем изменения
+        db.refresh(salary_record)   # Обновляем объект
 
     # Вычисляем текущую зарплату
-    current_salary = db.query(func.max(SalaryHistory.amount)).filter(SalaryHistory.employee_id == new_emp.id).scalar()
+    salary_records = db.query(SalaryHistoryModel).filter(SalaryHistoryModel.employee_id == new_emp.id).order_by(SalaryHistoryModel.change_date.desc()).all()
     
+    if salary_records:
+        latest_date = salary_records[0].change_date # Берём дату последнего изменения зарплаты
+
+        # Собираем все суммы зарплаты, которые относятся к самой последней дате
+        latest_records = [r.amount for r in salary_records if r.change_date == latest_date]
+
+         # Берём максимальную зарплату среди записей с одинаковой датой
+        current_salary = max(latest_records)
+    else:    
+        current_salary = None # Если записей изменения зарплаты нет — текущей зарплаты тоже нет
+
+
     # Преобразуем объект в словарь
     result = {
         "id": new_emp.id,
@@ -118,38 +131,39 @@ def create_employee(emp: EmployeeCreate, db: Session = Depends(get_db)):
 
     return result
 
-"""
-Класс EmployeeFull для передачи полной информации о сотруднике
-"""
-class EmployeeFull(BaseModel):
-    id: int   # Уникальный идентификатор сотрудника
-    last_name: str  # Фамилия сотрудника
-    first_name: str  # Имя сотрудника
-    middle_name: Optional[str] = None  # Отчество сотрудника
-    hire_date: date  # Дата найма сотрудника
-    department: Optional[str]  # Название отдела
-    position: Optional[str]  # Название должности
-    current_salary: Optional[float]  # Текущая зарплата
 
-    class Config:
-        orm_mode = True # Включаем режим ORM для работы с объектами SQLAlchemy
 
 """
-Функция получает всех сотрудников с информацией
-    Параметры: db: Session — объект сессии SQLAlchemy
+Функция получает всех сотрудников с полной информацией
+    Параметры: db: Session
     Возвращаемое значение: list[EmployeeFull] — список сотрудников с полной информацией
 """
 @app.get("/employees/full", response_model = List[EmployeeFull])  
 def get_employees_full(db=Depends(get_db)):
     employees = db.query(EmployeeModel).all()  # Получаем всех сотрудников из базы данных
-    result = [] # Список для хранения результатов
+    result = []  # Список для хранения результатов
 
-    for emp in employees:   # Проходим по каждому сотруднику
-        current_salary = None   # Инициализируем текущую зарплату
-        if emp.salary_history:   # Если есть записи истории зарплаты
-            current_salary = max(emp.salary_history, key = lambda s: s.change_date).amount     # Выбираем последнюю по дате запись
+    for emp in employees:  # Проходим по каждому сотруднику
+        current_salary = None  # Инициализируем текущую зарплату
+        if emp.salary_history:  # Если есть записи истории зарплаты
+            # Находим максимальную дату изменения зарплаты
+            latest_date = max(s.change_date for s in emp.salary_history)
 
-        emp_data = EmployeeFull(    # Создаём объект EmployeeFull
+            # Получаем ВСЕ суммы, у которых дата совпадает с самой последней
+            salaries_on_latest_date = [s.amount for s in emp.salary_history if s.change_date == latest_date]
+
+            # Выбираем максимальную сумму среди этих записей
+            current_salary = max(salaries_on_latest_date)
+        elif hasattr(emp, "amount") and emp.amount is not None:  # Если истории нет, но при создании была задана зарплата
+            current_salary = emp.amount 
+            
+            # Создаём первую запись в истории зарплат (на дату найма)
+            new_record = SalaryHistoryModel(employee_id = emp.id, change_date = emp.hire_date, amount = emp.amount)
+            db.add(new_record)   # Добавляем запись в сессию
+            db.commit() # Сохраняем изменения в базе данных
+            db.refresh(new_record)   # Обновляем объект
+
+        emp_data = EmployeeFull(  # Создаём объект EmployeeFull
             id = emp.id,  # id сотрудника
             last_name = emp.last_name,  # Фамилия
             first_name = emp.first_name,  # Имя
@@ -159,7 +173,7 @@ def get_employees_full(db=Depends(get_db)):
             position = emp.position.name if emp.position else None,  # Название должности (если есть)
             current_salary = current_salary  # Текущая зарплата
         )
-        result.append(emp_data) # Добавляем объект в список результатов
+        result.append(emp_data)  # Добавляем объект в список результатов
 
     return result   
 
@@ -204,75 +218,44 @@ def create_position(pos: Position, db: Session = Depends(get_db)):
    
     db.commit()  # Фиксируем изменения
    
-    db.refresh(new_pos)  # Обновляем объект, чтобы получить id
+    db.refresh(new_pos)  # Обновляем объект, чтобы получить id, созданный БД
     return new_pos
-
-"""
-Класс SalaryHistoryBase для получения данных при создании новой записи зарплаты
-"""
-class SalaryHistoryBase(BaseModel):
-    change_date: date    # Дата изменения зарплаты
-    amount: float        # Новая зарплата после изменения
-
-"""
-Класс SalaryHistory для возврата полной информации о записи истории зарплат
-"""
-class SalaryHistory(SalaryHistoryBase):
-    id: int              # id записи
-    employee_id: int     # id сотрудника
-    class Config:
-        orm_mode = True  # Разрешаем работу с объектами ORM
 
 
 """
 Функция добавляет запись в историю зарплат сотрудника
-    Параметры:
-        employee_id: int — id сотрудника
-        sal: SalaryHistoryBase — данные новой записи
-        db: Session — объект сессии SQLAlchemy
+    Параметры: employee_id: int, sal: SalaryHistoryBase, db: Session
     Возвращаемое значение: SalaryHistory — созданная запись истории зарплаты
 """
-@app.post("/salary/{employee_id}", response_model = SalaryHistory)
-def add_salary_record(
-    employee_id: int,               # id сотрудника, для которого создаём запись
-    sal: SalaryHistoryBase,         # Данные о зарплате
-    db: Session = Depends(get_db)   # Сессия базы данных
-):
-    employee = db.query(EmployeeModel).filter(EmployeeModel.id == employee_id).first()   # Проверяем, что сотрудник существует
+@app.post("/salary/{employee_id}", response_model=SalaryHistory)
+def add_salary_record(employee_id: int, sal: SalaryHistoryBase, db: Session = Depends(get_db)):
+    employee = db.query(EmployeeModel).filter(EmployeeModel.id == employee_id).first()  # Проверяем, что сотрудник существует
     if not employee:
         raise HTTPException(404, "Сотрудник не найден")
 
-    new_record = SalaryHistoryModel(     # Создаём новый объект истории зарплаты
-        employee_id = employee_id,   # Привязываем запись к конкретному сотруднику по его id
-        change_date = sal.change_date,  # Указываем дату изменения зарплаты, полученную из запроса
-        amount = sal.amount             # Указываем новую сумму зарплаты после изменения
+    new_record = SalaryHistoryModel(  # Создаём новый объект истории зарплаты
+        employee_id = employee_id,  # Привязываем запись к конкретному сотруднику
+        change_date = sal.change_date,  # Дата изменения зарплаты
+        amount = sal.amount  # Сумма зарплаты
     )
 
-    db.add(new_record) # Добавляем запись в БД
-   
+    db.add(new_record)  # Добавляем запись в БД
     db.commit()  # Сохраняем изменения
-    
-    db.refresh(new_record) # Обновляем объект
+    db.refresh(new_record)  # Обновляем объект, чтобы получить id, созданный БД
 
     return new_record
 
 
 """
 Функция получает историю зарплат для указанного сотрудника
-    Параметры:
-        employee_id: int — id сотрудника
-        db: Session — объект сессии SQLAlchemy
+    Параметры: employee_id: int, db: Session
     Возвращаемое значение: list[SalaryHistory] — список записей истории зарплаты
 """
 @app.get("/salary/{employee_id}", response_model = List[SalaryHistory])
 def get_salary_history(employee_id: int, db: Session = Depends(get_db)):
-   
-    employee = db.query(EmployeeModel).filter(EmployeeModel.id == employee_id).first()   # Проверяем, что сотрудник существует
+    employee = db.query(EmployeeModel).filter(EmployeeModel.id == employee_id).first()  # Проверяем, что сотрудник существует
     if not employee:
         raise HTTPException(404, "Сотрудник не найден")
 
-    # Получаем все записи истории зарплаты сотрудника
-    salary_records = db.query(SalaryHistoryModel).filter(SalaryHistoryModel.employee_id == employee_id).all()
-
-    # Возвращаем SQLAlchemy объекты — FastAPI конвертирует их через Pydantic
+    salary_records = db.query(SalaryHistoryModel).filter(SalaryHistoryModel.employee_id == employee_id).all()  # Получаем все записи истории зарплаты
     return salary_records

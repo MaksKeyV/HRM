@@ -122,6 +122,20 @@ async function loadPositions()
 }
 
 
+// Функция открывает страницу истории зарплат выбранного сотрудника
+// Параметры:
+//   id — id сотрудника
+//   first — имя сотрудника
+//   middle — отчество сотрудника
+//   last — фамилия сотрудника
+// Возвращаемое значение: отсутствует
+function openHistory(id, first, middle, last) 
+{
+    // Формируем URL для страницы истории зарплат с передачей id, имени, отчества и фамилии
+    window.location.href = `history_salary.html?employee=${id}&first=${first}&middle=${middle || ''}&last=${last}`;
+}
+
+
 // Функция загружает список сотрудников
 // Параметры: отсутствуют
 // Возвращаемое значение: отсутствует
@@ -152,12 +166,12 @@ async function loadEmployees()
         const row = document.createElement("tr");
         
         // При клике — переход к истории зарплат сотрудника
-        row.onclick = () => openHistory(emp.id, emp.first_name, emp.last_name);
+        row.onclick = () => openHistory(emp.id, emp.first_name, emp.middle_name, emp.last_name);
         
         // Заполняем ячейки данными
         row.innerHTML = 
         `
-            <td>${emp.first_name} ${emp.last_name}</td>
+            <td>${emp.last_name} ${emp.first_name}${emp.middle_name ? ' ' + emp.middle_name : ''}</td>
             <td>${emp.department.name}</td>
             <td>${emp.position.name}</td>
             <td>${formatDate(emp.hire_date)}</td>
@@ -187,6 +201,7 @@ async function init()
     document.getElementById("hireFrom").addEventListener("change", loadEmployees);
     document.getElementById("hireTo").addEventListener("change", loadEmployees);
 }
+
 
 // Инициализация страницы
 window.onload = init;

@@ -50,14 +50,13 @@ const API = "http://127.0.0.1:8000";
 // --- читаем параметры из URL ---
 const params = new URLSearchParams(window.location.search);
 const employeeId = params.get("employee");
-const firstName = params.get("first");
 const lastName = params.get("last");
+const middleName = params.get("middle") || "";
+const firstName = params.get("first");
 
 // Подставляем ФИО
-if (firstName && lastName) 
-{
-    document.getElementById("title").textContent = `История зарплат — ${firstName} ${lastName}`;
-}
+const fullName = `${lastName} ${firstName}${middleName ? ' ' + middleName : ''}`;
+document.getElementById("title").textContent = `История зарплат — ${fullName}`;
 
 // Функция форматирует дату в вид ДД.ММ.ГГГГ
 // Параметры: d — дата
