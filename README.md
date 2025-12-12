@@ -42,7 +42,7 @@ HRM (Human Resource Management) — это веб-приложение для у
 
    > USE <имя_базы_данных>; 
    
-6. В MySQL Workbench база данных появится в панели SCHEMAS слева под названием hmr_work
+6. В MySQL Workbench база данных появится в панели SCHEMAS
 7. Внутри базы в разделе **Tables** после первого запуска проекта автоматически появятся таблицы:
     - departments
     - employees
